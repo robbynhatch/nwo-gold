@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NWO: Find your gold</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Saira+Extra+Condensed:wght@500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Barlow', sans-serif;
+            background-color: #f2f2f2;
+            display: flex; /* Make body a flex container */
+            flex-direction: column; /* Stack children vertically */
+            min-height: 100vh; /* Ensure body takes full viewport height */
+        }
+        h1, h2 {
+            font-family: 'Saira Extra Condensed', sans-serif;
+            color: #18657C;
+        }
+        .story-panel-wrapper {
+            perspective: 1000px;
+            height: 80px;
+            margin-bottom: 1rem;
+        }
+        .story-panel {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s ease-in-out, box-shadow 0.2s ease-in-out;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: grab;
+        }
+        .story-panel:active {
+            cursor: grabbing;
+        }
+        .story-panel.dragging {
+            opacity: 0.7;
+            transform: scale(0.98);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        .story-panel.flipped {
+            transform: rotateY(180deg);
+            cursor: default;
+        }
+
+        .panel-front, .panel-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem;
+            overflow: hidden;
+        }
+
+        .panel-front {
+            background-image: url('https://i.postimg.cc/XqMQ42Qs/Asset-2.png');
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: center;
+            color: #333; /* Darker text color for etched effect */
+            /* Etched text effect */
+            text-shadow: 
+                1px 1px 0px rgba(255, 255, 255, 0.3), /* Light highlight top-left */
+                -1px -1px 0px rgba(0, 0, 0, 0.5);   /* Dark shadow bottom-right */
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+        }
+
+        .panel-back {
+            background-color: #f8f9fa;
+            transform: rotateY(180deg);
+            padding: 0.5rem;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid #d0d0d0;
+        }
+        .panel-back textarea {
+            width: 100%;
+            height: 100%;
+            resize: none;
+            border: 1px solid #a0c8e0;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            font-size: 0.875rem;
+            outline: none;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+            color: #333333;
+            background-color: #fff;
+            font-family: 'Barlow', sans-serif;
+        }
+        .panel-back .save-btn {
+            margin-top: 0.5rem;
+            width: fit-content;
+            padding: 0.3rem 0.8rem;
+            font-size: 0.8rem;
+            background-color: #0056b3;
+            color: white;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s;
+        }
+        .panel-back .save-btn:hover {
+            background-color: #004080;
+        }
+
+        .drop-zone {
+            min-height: 120px;
+            border: 2px dashed #d0d0d0;
+            background-color: #e9ecef;
+        }
+        .drop-zone.active {
+            border-color: #0056b3;
+            background-color: #cce0ff;
+        }
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            text-align: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .message-box.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .comment-log-item {
+            background-color: #fff;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-left: 4px solid #0056b3;
+            font-size: 0.85rem;
+        }
+        p, input, button {
+            font-family: 'Barlow', sans-serif;
+        }
+        /* Fixed Add Trait Section styles */
+        #add-trait-fixed-section {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background-color: #f2f2f2; /* Match body background */
+            padding: 1rem;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1); /* Shadow at the top */
+        }
+        /* Padding for the main content to prevent overlap with fixed section */
+        #main-content-scroll-wrapper {
+            flex-grow: 1; /* Allows it to take up available space */
+            overflow-y: auto; /* Enables vertical scrolling */
+            padding: 1rem; /* Base padding */
+            padding-bottom: 0; /* Will be adjusted by JS */
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+    <div id="main-content-scroll-wrapper" class="flex-grow overflow-y-auto">
+        <div class="bg-white p-6 sm:p-10 rounded-xl shadow-2xl max-w-screen-xl w-full mx-auto">
+            <h1 class="text-3xl sm:text-4xl font-bold text-center mb-6">NWO find your gold</h1>
+            <p class="text-center text-gray-600 mb-8">Klik op een gouden steen om deze om te draaien en een opmerking toe te voegen. Sleep ze naar "Jouw Prioriteit" om ze te rangschikken.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-semibold mb-4">NWO Gouden Eigenschappen</h2>
+                    <div id="jumbled-panels" class="space-y-4 p-4 bg-gray-100 rounded-lg drop-zone">
+                        </div>
+                </div>
+
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-semibold mb-4">Jouw Prioriteit</h2>
+                    <div id="ordered-panels" class="space-y-4 p-4 bg-gray-100 rounded-lg drop-zone">
+                        </div>
+                </div>
+
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-semibold mb-4">Opmerkingenlogboek</h2>
+                    <div id="comment-log" class="space-y-3 p-4 bg-gray-100 rounded-lg min-h-[120px]">
+                        <p class="text-gray-500 text-sm text-center" id="no-comments-message">Nog geen opmerkingen. Draai een steen om en voeg er een toe!</p>
+                        </div>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center flex justify-center space-x-4">
+                <button id="restart-game-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75">
+                    Herstarten
+                </button>
+            </div>
+
+            <div id="message-box" class="message-box">
+                <p id="message-text" class="text-lg font-semibold mb-4"></p>
+                <button id="close-message-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md">
+                    Begrepen!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fixed Add Custom Trait Section -->
+    <div id="add-trait-fixed-section" class="p-4 bg-blue-50 rounded-lg shadow-inner">
+        <h2 class="text-xl font-semibold mb-4 text-center">Voeg je eigen Gouden Eigenschap toe</h2>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <input type="text" id="new-trait-input" placeholder="Typ hier je nieuwe eigenschap..." class="flex-grow p-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base">
+            <button id="add-trait-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
+                Eigenschap Toevoegen
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const jumbledPanelsContainer = document.getElementById('jumbled-panels');
+            const orderedPanelsContainer = document.getElementById('ordered-panels');
+            const restartGameBtn = document.getElementById('restart-game-btn');
+            const newTraitInput = document.getElementById('new-trait-input');
+            const addTraitBtn = document.getElementById('add-trait-btn');
+            const messageBox = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
+            const closeMessageBtn = document.getElementById('close-message-btn');
+            const commentLog = document.getElementById('comment-log');
+            const noCommentsMessage = document.getElementById('no-comments-message');
+            const addTraitFixedSection = document.getElementById('add-trait-fixed-section');
+            const mainContentScrollWrapper = document.getElementById('main-content-scroll-wrapper');
+
+
+            // Define the initial story panels
+            const initialStoryData = [
+                { id: 'panel-1', order: 1, text: 'Omgangsvormen\nbejegening' },
+                { id: 'panel-2', order: 2, text: 'Informeel gedrag' },
+                { id: 'panel-3', order: 3, text: 'Empathie\nvan mens tot mens, van hart tot hart' },
+                { id: 'panel-4', order: 4, text: 'Teamgevoel\nSamen de klus klaren' },
+                { id: 'panel-5', order: 5, text: 'Transparantie en Communicatie' },
+                { id: 'panel-6', order: 6, text: 'Autonomie door flexibiliteit' }
+            ];
+
+            let draggedItem = null;
+            let customPanelCounter = 0; // To ensure unique IDs for custom panels
+            const comments = {}; // Object to store comments: { panelId: [comment1, comment2, ...] }
+
+            // Function to shuffle an array (Fisher-Yates algorithm)
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            // Create and append a single story panel element
+            function createPanelElement(data) {
+                const panelWrapper = document.createElement('div');
+                panelWrapper.classList.add('story-panel-wrapper'); // Wrapper for 3D perspective
+                panelWrapper.id = `wrapper-${data.id}`; // Assign ID to wrapper
+
+                const panel = document.createElement('div');
+                panel.id = data.id; // Inner panel retains its ID
+                panel.classList.add('story-panel');
+                panel.setAttribute('draggable', 'true');
+                panel.setAttribute('data-order', data.order); // Store the order
+
+                const panelFront = document.createElement('div');
+                panelFront.classList.add('panel-front');
+                const frontText = document.createElement('p');
+                frontText.classList.add('text-sm', 'font-semibold', 'text-center'); /* Changed text-base to text-sm */
+                frontText.innerHTML = data.text.replace(/\n/g, '<br>'); // Handle newlines
+                panelFront.appendChild(frontText);
+
+                const panelBack = document.createElement('div');
+                panelBack.classList.add('panel-back');
+                const commentTextarea = document.createElement('textarea');
+                commentTextarea.placeholder = `Voeg een opmerking toe voor "${data.text.split('\n')[0]}"...`;
+                commentTextarea.classList.add('comment-textarea');
+                panelBack.appendChild(commentTextarea);
+
+                // Event listener for Enter key on the textarea
+                commentTextarea.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault(); // Prevent new line in textarea
+                        saveCommentBtn.click(); // Programmatically click the save button
+                    }
+                });
+
+                const buttonContainer = document.createElement('div');
+                buttonContainer.classList.add('flex', 'justify-center', 'items-center', 'w-full');
+                
+                const saveCommentBtn = document.createElement('button');
+                saveCommentBtn.textContent = 'Opmerking Opslaan';
+                saveCommentBtn.classList.add('save-btn');
+                saveCommentBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent panel flip when clicking save button
+                    const currentComment = commentTextarea.value.trim();
+                    if (currentComment) {
+                        if (!comments[data.id]) {
+                            comments[data.id] = []; // Initialize as array if it doesn't exist
+                        }
+                        comments[data.id].push(currentComment);
+                        commentTextarea.value = ''; // Clear textarea after saving
+                        updateCommentLog();
+                        showMessage(`Opmerking toegevoegd aan '${data.text.split('\n')[0]}'!`, 'bg-green-100 text-green-800');
+                    } else {
+                        showMessage('Voer een opmerking in om op te slaan!', 'bg-yellow-100 text-yellow-800');
+                    }
+                    panel.classList.remove('flipped'); // Flip back after saving
+                    panel.setAttribute('draggable', 'true'); // Re-enable dragging
+                });
+                buttonContainer.appendChild(saveCommentBtn);
+
+                panelBack.appendChild(buttonContainer);
+
+                panel.appendChild(panelFront);
+                panel.appendChild(panelBack);
+                panelWrapper.appendChild(panel);
+
+                // Click to flip functionality
+                panel.addEventListener('click', () => {
+                    // Only allow flipping if not currently dragging
+                    if (!panel.classList.contains('dragging')) {
+                        panel.classList.toggle('flipped');
+                        // Disable dragging when flipped, enable when not
+                        panel.setAttribute('draggable', !panel.classList.contains('flipped'));
+                        // Focus on textarea when flipped to the back
+                        if (panel.classList.contains('flipped')) {
+                            commentTextarea.focus();
+                        }
+                    }
+                });
+
+                // Add dragstart and dragend listeners directly to the panel
+                panel.addEventListener('dragstart', handleDragStart);
+                panel.addEventListener('dragend', handleDragEnd);
+
+                return panelWrapper; // Return the wrapper
+            }
+
+            // Initialize the game panels
+            function initializePanels() {
+                // Clear existing panels
+                jumbledPanelsContainer.innerHTML = '';
+                orderedPanelsContainer.innerHTML = '';
+                customPanelCounter = 0; // Reset counter for custom panels on restart
+                // Clear comments on restart
+                for (const key in comments) {
+                    delete comments[key];
+                }
+
+                // Shuffle the initial story data for the jumbled section
+                const shuffledInitialData = shuffleArray([...initialStoryData]);
+
+                shuffledInitialData.forEach(data => {
+                    const panelWrapper = createPanelElement(data);
+                    jumbledPanelsContainer.appendChild(panelWrapper);
+                });
+
+                // Hide message box on restart
+                messageBox.classList.remove('show');
+                updateCommentLog(); // Clear and update comment log
+            }
+
+            // --- Drag and Drop Event Handlers ---
+
+            // When dragging starts for any story panel
+            function handleDragStart(e) {
+                // Ensure e.target is a valid element before calling closest
+                if (!e.target || typeof e.target.closest !== 'function') {
+                    console.error("e.target is null or invalid in handleDragStart:", e.target);
+                    e.preventDefault();
+                    return;
+                }
+
+                const targetPanel = e.target.closest('.story-panel'); // Ensure we get the actual panel
+                if (!targetPanel || targetPanel.classList.contains('flipped')) {
+                    e.preventDefault();
+                    return;
+                }
+
+                draggedItem = targetPanel.closest('.story-panel-wrapper'); // Get the wrapper
+                if (!draggedItem) { // Double check if wrapper is found
+                    console.error("draggedItem wrapper is null in handleDragStart. e.target:", e.target);
+                    e.preventDefault(); // Prevent drag if wrapper not found
+                    return;
+                }
+
+                setTimeout(() => {
+                    draggedItem.querySelector('.story-panel').classList.add('dragging'); // Add class to inner panel
+                }, 0);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', draggedItem.id); // Pass the *wrapper's* ID
+            }
+
+            // When dragging ends for any story panel
+            function handleDragEnd(e) {
+                if (draggedItem) {
+                    const innerPanel = draggedItem.querySelector('.story-panel');
+                    if (innerPanel) { // Add safety check
+                        innerPanel.classList.remove('dragging');
+                    }
+                    // draggedItem = null; // No need to nullify, it will be overwritten on next dragstart
+                }
+                // Remove drag-over class from all drop zones
+                document.querySelectorAll('.drop-zone').forEach(zone => {
+                    zone.classList.remove('active');
+                });
+            }
+
+            // When a draggable item is dragged over a drop zone
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                zone.addEventListener('dragover', (e) => {
+                    e.preventDefault(); // Necessary to allow dropping
+                    e.dataTransfer.dropEffect = 'move';
+                    zone.classList.add('active'); // Visual feedback for active drop zone
+
+                    const currentDraggedElWrapperId = e.dataTransfer.getData('text/plain');
+                    const currentDraggedElWrapper = document.getElementById(currentDraggedElWrapperId);
+
+                    if (!currentDraggedElWrapper) {
+                        console.error('Dragged element (wrapper) not found in DOM during dragover:', currentDraggedElWrapperId);
+                        return; // Exit early to prevent further errors
+                    }
+
+                    const draggingOverItemWrapper = getDragAfterElement(zone, e.clientY);
+
+                    if (currentDraggedElWrapper && currentDraggedElWrapper !== draggingOverItemWrapper) {
+                        if (draggingOverItemWrapper == null) {
+                            zone.appendChild(currentDraggedElWrapper);
+                        } else {
+                            zone.insertBefore(currentDraggedElWrapper, draggingOverItemWrapper);
+                        }
+                    }
+                });
+
+                // When a draggable item leaves a drop zone
+                zone.addEventListener('dragleave', (e) => {
+                    zone.classList.remove('active');
+                });
+
+                // When a draggable item is dropped on a drop zone
+                zone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    zone.classList.remove('active'); // Remove active feedback
+
+                    const droppedElementWrapperId = e.dataTransfer.getData('text/plain');
+                    const droppedElementWrapper = document.getElementById(droppedElementWrapperId);
+
+                    if (!droppedElementWrapper) {
+                        console.error('Dropped element (wrapper) not found in DOM during drop:', droppedElementWrapperId);
+                        return; // Exit early
+                    }
+
+                    const afterElementWrapper = getDragAfterElement(zone, e.clientY);
+
+                    if (afterElementWrapper == null) {
+                        zone.appendChild(droppedElementWrapper); // Append to end if no element below
+                    } else {
+                        zone.insertBefore(droppedElementWrapper, afterElementWrapper); // Insert before the found element
+                        // After successful drop, ensure the panel is not flipped and is draggable
+                        const innerPanel = droppedElementWrapper.querySelector('.story-panel');
+                        if (innerPanel) {
+                            innerPanel.classList.remove('flipped');
+                            innerPanel.setAttribute('draggable', 'true');
+                        }
+                    }
+                });
+            });
+
+            // Helper function to determine where to insert the dragged element
+            function getDragAfterElement(container, y) {
+                // Select .story-panel-wrapper elements, and filter out the one currently being dragged
+                const draggableElements = [...container.querySelectorAll('.story-panel-wrapper')].filter(wrapper => {
+                    const innerPanel = wrapper.querySelector('.story-panel');
+                    // Ensure innerPanel exists and does NOT have the 'dragging' class
+                    return innerPanel && !innerPanel.classList.contains('dragging');
+                });
+
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2; // Calculate offset from center of element
+
+                    // If offset is negative and closer to 0, this is the closest element above
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: -Infinity }).element; // Initialize with -Infinity to ensure first element is considered
+            }
+
+            // --- New Trait Addition Logic ---
+            addTraitBtn.addEventListener('click', () => {
+                const traitText = newTraitInput.value.trim();
+                if (traitText) {
+                    customPanelCounter++;
+                    const newPanelData = {
+                        id: `custom-panel-${customPanelCounter}`,
+                        order: 1000 + customPanelCounter, // Assign a high order to custom panels
+                        text: traitText
+                    };
+                    const newPanelWrapper = createPanelElement(newPanelData);
+                    jumbledPanelsContainer.appendChild(newPanelWrapper);
+                    newTraitInput.value = ''; // Clear the input field
+                    showMessage(`'${traitText}' toegevoegd aan NWO Gouden Eigenschappen!`, 'bg-green-100 text-green-800');
+                } else {
+                    showMessage('Voer een eigenschap in om toe te voegen!', 'bg-yellow-100 text-yellow-800');
+                }
+            });
+
+            // --- Comment Log Logic ---
+            function updateCommentLog() {
+                commentLog.innerHTML = ''; // Clear current log
+                let totalComments = 0;
+
+                // Collect all comments from initial and custom panels
+                const allPanelIds = new Set();
+                initialStoryData.forEach(data => allPanelIds.add(data.id));
+                document.querySelectorAll('.story-panel-wrapper').forEach(wrapper => {
+                    const panelId = wrapper.querySelector('.story-panel').id;
+                    allPanelIds.add(panelId);
+                });
+
+                allPanelIds.forEach(panelId => {
+                    if (comments[panelId] && Array.isArray(comments[panelId])) {
+                        // Find the original trait text for display in the log
+                        let traitText = '';
+                        const initialData = initialStoryData.find(d => d.id === panelId);
+                        if (initialData) {
+                            traitText = initialData.text.split('\n')[0];
+                        } else {
+                            // For custom panels, get the text from the actual DOM element
+                            const panelElement = document.getElementById(panelId);
+                            if (panelElement) {
+                                traitText = panelElement.querySelector('.panel-front p').textContent;
+                            } else {
+                                traitText = 'Aangepaste Eigenschap'; // Fallback
+                            }
+                        }
+
+                        comments[panelId].forEach(comment => {
+                            if (comment.trim() !== '') {
+                                const commentItem = document.createElement('div');
+                                commentItem.classList.add('comment-log-item');
+                                commentItem.innerHTML = `<p class="font-semibold text-gray-800">${traitText}:</p><p class="text-gray-700 text-sm">${comment}</p>`;
+                                commentLog.appendChild(commentItem);
+                                totalComments++;
+                            }
+                        });
+                    }
+                });
+
+                if (totalComments === 0) {
+                    commentLog.appendChild(noCommentsMessage);
+                }
+            }
+
+
+            // Event listener for the restart button
+            restartGameBtn.addEventListener('click', () => {
+                initializePanels(); // Re-initialize the game
+            });
+
+            // Message box functionality
+            function showMessage(message, classes) {
+                messageText.textContent = message;
+                messageText.className = `text-lg font-semibold mb-4 ${classes}`; // Apply dynamic classes
+                messageBox.classList.add('show');
+            }
+
+            closeMessageBtn.addEventListener('click', () => {
+                messageBox.classList.remove('show');
+            });
+
+            // Function to adjust padding for the main content wrapper
+            function adjustMainContentPadding() {
+                const fixedSectionHeight = addTraitFixedSection.offsetHeight;
+                mainContentScrollWrapper.style.paddingBottom = `${fixedSectionHeight + 20}px`; // Add some extra margin
+            }
+
+            // Adjust padding on load and window resize
+            window.addEventListener('load', adjustMainContentPadding);
+            window.addEventListener('resize', adjustMainContentPadding);
+
+            // Initialize the game when the page loads
+            initializePanels();
+        });
+    </script>
+</body>
+</html>
